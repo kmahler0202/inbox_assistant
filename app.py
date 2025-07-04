@@ -15,6 +15,11 @@ def index():
 def chat():
     data = request.json
     user_message = data.get("message", "")
+    print("user_message raw:", user_message)
+    print("type:", type(user_message))
+
+    # Just to be safe, convert to string in case it's a number or object
+    user_message = str(user_message)
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
