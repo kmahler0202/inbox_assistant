@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from openai import OpenAI
+from classifier import classify_email
 import os
 
 app = Flask(__name__)
@@ -31,6 +32,19 @@ def chat():
 
     reply = response.choices[0].message.content.strip()
     return jsonify({"reply": reply})
+
+@app.route('/classify', methods=['POST'])
+def classify():
+    data = request.get_json()
+    subject = data.get("subject", "")
+    snippet = data.get("snippet", "")
+
+    subject = str(subject)
+    snippet = str(snippet)
+    
+    label = classify_email(subject, snippet)
+    return jsonify({"label": label})
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
