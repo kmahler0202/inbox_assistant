@@ -2,14 +2,12 @@
 # GPT-4.1-mini powered email label classifier using structured categories and system instructions.
 # adapted to work with google aps inbox assistant v1
 
-import os
 from openai import OpenAI
-from dotenv import load_dotenv
+import os
 
 # Limit email body length to reduce token usage
 MAX_SNIPPET_LEN = 500
 
-load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def classify_email(subject, snippet):
