@@ -1,11 +1,11 @@
 from flask import Flask, request, jsonify
-import openai
+from openai import OpenAI
 import os
 
 app = Flask(__name__)
 
 # Set your key here or use environment variable
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route('/')
 def index():
@@ -16,13 +16,12 @@ def chat():
     data = request.json
     user_message = data.get("message", "")
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4o",
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": "You are a helpful assistant inside of an inbox."},
             {"role": "user", "content": user_message}
-        ],
-        temperature=0.5
+        ]
     )
 
     reply = response.choices[0].message.content.strip()
