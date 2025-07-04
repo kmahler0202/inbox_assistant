@@ -7,6 +7,10 @@ app = Flask(__name__)
 # Set your key here or use environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+@app.route('/')
+def index():
+    return 'Inbox Assistant Backend Is Running...'
+
 @app.route('/chat', methods=['POST'])
 def chat():
     data = request.json
