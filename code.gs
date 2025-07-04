@@ -17,29 +17,38 @@ function buildAddOn(e) {
   return card.build();
 }
 
-function handleChatSubmit(e) {
-  var message = e.commonEventObject.formInputs.message.stringInputs.value[0];
+function handleChatSubmit(value) {
+  if (!value) value = "No message provided.";
 
-  Logger.log("User said: " + message);
-  return "This is a fake GPT reply to: " + message;
-  // var userMessage = e.commonEventObject.formInputs.message.stringInputs.value[0];
+  try {
+    const payload = {
+      message: value
+    };
 
-  // var response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com", {
-  //   method: "post",
-  //   contentType: "application/json",
-  //   payload: JSON.stringify({ message: userMessage })
-  // });
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
 
-  // var json = JSON.parse(response.getContentText());
-  // var reply = json.reply;
+    const response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/chat", options);
+    const json = JSON.parse(response.getContentText());
+    const reply = json.reply;
 
-  // var card = CardService.newCardBuilder();
-  // var section = CardService.newCardSection();
+    // Addon environment compatibility: always return a card
+    return CardService.newCardBuilder()
+      .addSection(CardService.newCardSection()
+        .addWidget(CardService.newTextParagraph().setText(reply)))
+      .build();
 
-  // section.addWidget(CardService.newTextParagraph().setText("<b>You:</b> " + userMessage));
-  // section.addWidget(CardService.newTextParagraph().setText("<b>GPT:</b> " + reply));
-
-  // card.addSection(section);
-  // return card.build();
+  } catch (e) {
+    return CardService.newCardBuilder()
+      .addSection(CardService.newCardSection()
+        .addWidget(CardService.newTextParagraph().setText("Error: " + e.message)))
+      .build();
+  }
 }
+
+
 
