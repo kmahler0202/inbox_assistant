@@ -1,0 +1,48 @@
+<!-- sidebar.html -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 10px;
+      }
+      button, input {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        font-size: 14px;
+      }
+      h2 {
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Email Organizer</h2>
+
+    <button onclick="google.script.run.classifyRecentEmails()">Classify 10 Recent Emails</button>
+    <button onclick="google.script.run.summarizeRecentEmail()">Summarize Most Recent Email</button>
+
+    <hr>
+
+    <form id="chat-form">
+      <input type="text" id="chat-input" placeholder="Ask something..." />
+      <button type="submit">Send to GPT</button>
+    </form>
+
+    <script>
+      document.getElementById("chat-form").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const message = document.getElementById("chat-input").value;
+
+        google.script.run
+          .withSuccessHandler(function(response) {
+            alert("GPT Response:\n" + response);
+          })
+          .handleChatSubmit(message);  // You must define this in your .gs file
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "timeZone": "America/Chicago",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.locale",
+    "https://www.googleapis.com/auth/gmail.addons.execute"
+  ],
+  "addOns": {
+    "common": {
+      "name": "Inbox Assistant",
+      "logoUrl": "https://ssl.gstatic.com/docs/script/images/logo.png",
+      "layoutProperties": {
+        "primaryColor": "#4285F4",
+        "secondaryColor": "#FFFFFF"
+      },
+      "useLocaleFromApp": true
+    },
+    "gmail": {
+      "homepageTrigger": {
+        "runFunction": "buildAddOn",
+        "enabled": true
+      }
+    }
+  }
+}
