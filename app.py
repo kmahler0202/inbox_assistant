@@ -56,14 +56,17 @@ def classify():
 @app.route('/start_watch')
 def start_watch():
     try:
-        creds_data = json.loads(os.environ['GMAIL_TOKEN_JSON'])
+        # Read the secret file contents from disk
+        with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
+            creds_data = json.load(f)
+
         creds = Credentials.from_authorized_user_info(creds_data)
 
         service = build('gmail', 'v1', credentials=creds)
 
         request = {
             'labelIds': ['INBOX'],
-            'topicName': 'projects/email-organizer-461719/topics/gmail-notify'
+            'topicName': 'projects/YOUR_PROJECT_ID/topics/YOUR_TOPIC_NAME'
         }
 
         response = service.users().watch(userId='me', body=request).execute()
@@ -71,7 +74,6 @@ def start_watch():
         return jsonify(response)
 
     except Exception as e:
-        current_app.logger.error(f"Watch registration failed: {e}")
         return f"Error: {e}", 500
 
 if __name__ == '__main__':
