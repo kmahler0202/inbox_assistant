@@ -1,2 +1,4 @@
 .env
 todo.txt
+credentials.json
+token.json
