@@ -122,7 +122,7 @@ def gmail_webhook():
         # Step 3: Call classifier
         import requests
         classify_response = requests.post(
-            'https://inbox-assistant-x5uk.onrender.comclassify',  
+            'https://inbox-assistant-x5uk.onrender.com/classify',  
             json={"subject": subject, "snippet": snippet}
         )
         label = classify_response.json().get('label', 'Other')
