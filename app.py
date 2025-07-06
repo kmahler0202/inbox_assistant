@@ -66,7 +66,7 @@ def start_watch():
 
         request = {
             'labelIds': ['INBOX'],
-            'topicName': 'projects/YOUR_PROJECT_ID/topics/YOUR_TOPIC_NAME'
+            'topicName': 'projects/email-organizer-461719/topics/gmail-notify'
         }
 
         response = service.users().watch(userId='me', body=request).execute()
