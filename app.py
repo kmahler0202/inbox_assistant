@@ -3,6 +3,8 @@ from openai import OpenAI
 from classifier import classify_email
 import os
 
+import base64
+
 import json
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
