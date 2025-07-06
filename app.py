@@ -13,6 +13,9 @@ app = Flask(__name__)
 # PUB/SUB TOPIC NAME BELOW:
 # projects/email-organizer-461719/topics/gmail-notify
 
+# Render URL below
+# https://inbox-assistant-x5uk.onrender.com
+
 # Set your key here or use environment variable
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -74,6 +77,76 @@ def start_watch():
         return jsonify(response)
 
     except Exception as e:
+        return f"Error: {e}", 500
+    
+@app.route('/gmail_webhook', methods=['POST'])
+def gmail_webhook():
+    envelope = request.get_json()
+
+    if not envelope or 'message' not in envelope:
+        return 'Invalid Pub/Sub message format', 400
+
+    # Decode base64 message
+    pubsub_message = envelope['message']
+    data = pubsub_message.get('data')
+    if not data:
+        return 'No data in message', 204
+
+    decoded_data = base64.b64decode(data).decode('utf-8')
+    print(f"✅ Received push: {decoded_data}")
+
+    # Load Gmail credentials from secret file
+    try:
+        with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
+            creds_data = json.load(f)
+        creds = Credentials.from_authorized_user_info(creds_data)
+        service = build('gmail', 'v1', credentials=creds)
+
+        # Step 1: List unread messages
+        messages_response = service.users().messages().list(userId='me', labelIds=['INBOX'], q="is:unread").execute()
+        messages = messages_response.get('messages', [])
+
+        if not messages:
+            print("No new unread messages.")
+            return "No new messages", 200
+
+        # Step 2: Get the most recent message
+        msg_id = messages[0]['id']
+        full_message = service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['Subject']).execute()
+
+        subject = next((h['value'] for h in full_message['payload']['headers'] if h['name'] == 'Subject'), '')
+        snippet = full_message.get('snippet', '')
+
+        print(f" New message: {subject[:50]}")
+
+        # Step 3: Call classifier
+        import requests
+        classify_response = requests.post(
+            'https://inbox-assistant-x5uk.onrender.comclassify',  
+            json={"subject": subject, "snippet": snippet}
+        )
+        label = classify_response.json().get('label', 'Other')
+        print(f" Classified as: {label}")
+
+        # Step 4: Apply label in Gmail
+        # Create label if it doesn’t exist
+        all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
+        label_ids = {lbl['name']: lbl['id'] for lbl in all_labels}
+        if label not in label_ids:
+            new_label = service.users().labels().create(userId='me', body={"name": label}).execute()
+            label_ids[label] = new_label['id']
+
+        # Apply label and mark as read
+        service.users().messages().modify(
+            userId='me',
+            id=msg_id,
+            body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
+        ).execute()
+
+        return f"Labeled email '{subject[:40]}' as {label}", 200
+
+    except Exception as e:
+        print(f" Error in webhook: {e}")
         return f"Error: {e}", 500
 
 if __name__ == '__main__':
