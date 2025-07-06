@@ -10,6 +10,9 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import current_app
 
+# Set needed because changing the inbox is automatically triggering the webhook
+processed_ids = set()
+
 app = Flask(__name__)
 
 # PUB/SUB TOPIC NAME BELOW:
@@ -88,68 +91,81 @@ def gmail_webhook():
     if not envelope or 'message' not in envelope:
         return 'Invalid Pub/Sub message format', 400
 
-    # Decode base64 message
     pubsub_message = envelope['message']
     data = pubsub_message.get('data')
+
     if not data:
         return 'No data in message', 204
 
     decoded_data = base64.b64decode(data).decode('utf-8')
     print(f"✅ Received push: {decoded_data}")
 
-    # Load Gmail credentials from secret file
     try:
         with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
             creds_data = json.load(f)
         creds = Credentials.from_authorized_user_info(creds_data)
         service = build('gmail', 'v1', credentials=creds)
 
-        # Step 1: List unread messages
-        messages_response = service.users().messages().list(userId='me', labelIds=['INBOX'], q="is:unread").execute()
+        # Step 1: Get unread messages
+        messages_response = service.users().messages().list(
+            userId='me',
+            labelIds=['INBOX'],
+            q="is:unread"
+        ).execute()
         messages = messages_response.get('messages', [])
 
         if not messages:
-            print("No new unread messages.")
+            print("ℹ️ No new unread messages.")
             return "No new messages", 200
 
-        # Step 2: Get the most recent message
-        msg_id = messages[0]['id']
-        full_message = service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['Subject']).execute()
+        for msg in messages:
+            msg_id = msg['id']
 
-        subject = next((h['value'] for h in full_message['payload']['headers'] if h['name'] == 'Subject'), '')
-        snippet = full_message.get('snippet', '')
+            if msg_id in processed_ids:
+                print(f"⏭️ Skipping already-processed message: {msg_id}")
+                continue
 
-        print(f" New message: {subject[:50]}")
+            processed_ids.add(msg_id)
+            print(f"📬 Processing new message: {msg_id}")
 
-        # Step 3: Call classifier
-        import requests
-        classify_response = requests.post(
-            'https://inbox-assistant-x5uk.onrender.com/classify',  
-            json={"subject": subject, "snippet": snippet}
-        )
-        label = classify_response.json().get('label', 'Other')
-        print(f" Classified as: {label}")
+            full_message = service.users().messages().get(
+                userId='me',
+                id=msg_id,
+                format='metadata',
+                metadataHeaders=['Subject']
+            ).execute()
 
-        # Step 4: Apply label in Gmail
-        # Create label if it doesn’t exist
-        all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
-        label_ids = {lbl['name']: lbl['id'] for lbl in all_labels}
-        if label not in label_ids:
-            new_label = service.users().labels().create(userId='me', body={"name": label}).execute()
-            label_ids[label] = new_label['id']
+            subject = next((h['value'] for h in full_message['payload']['headers'] if h['name'] == 'Subject'), '')
+            snippet = full_message.get('snippet', '')
 
-        # Apply label and mark as read
-        service.users().messages().modify(
-            userId='me',
-            id=msg_id,
-            body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
-        ).execute()
+            # Step 2: Classify
+            classify_response = requests.post(
+                'https://inbox-assistant-x5uk.onrender.com/classify',
+                json={"subject": subject, "snippet": snippet}
+            )
+            label = classify_response.json().get('label', 'Other')
+            print(f"🏷️ Classified as: {label}")
 
-        return f"Labeled email '{subject[:40]}' as {label}", 200
+            # Step 3: Add label if needed
+            all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
+            label_ids = {lbl['name']: lbl['id'] for lbl in all_labels}
+            if label not in label_ids:
+                new_label = service.users().labels().create(userId='me', body={"name": label}).execute()
+                label_ids[label] = new_label['id']
+
+            # Step 4: Apply label + mark as read
+            service.users().messages().modify(
+                userId='me',
+                id=msg_id,
+                body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
+            ).execute()
+
+        return "OK", 200
 
     except Exception as e:
-        print(f" Error in webhook: {e}")
+        print(f"❌ Error in webhook: {e}")
         return f"Error: {e}", 500
-
+    
+    
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
