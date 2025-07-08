@@ -10,8 +10,6 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import current_app
 
-from hid import load_last_history_id, save_last_history_id
-
 # Set needed because changing the inbox is automatically triggering the webhook
 processed_ids = set()
 
@@ -76,16 +74,13 @@ def start_watch():
 
         request = {
             'labelIds': ['INBOX'],
-            'topicName': 'projects/email-organizer-461719/topics/gmail-notify'
+            'topicName': 'projects/email-organizer-461719/topics/gmail-notify',
+            'labelFilterBehavior': 'INCLUDE'
         }
 
         response = service.users().watch(userId='me', body=request).execute()
         history_id = response.get('historyId')
         print("Watch registered:", response)
-
-        if history_id:
-            save_last_history_id(history_id)
-
 
         return jsonify(response)
 
@@ -103,10 +98,7 @@ def gmail_webhook():
     if not data:
         return 'No data in message', 204
 
-    # Decode base64-encoded historyId
-    decoded_data = base64.b64decode(data).decode('utf-8')
-    new_history_id = decoded_data.strip()
-    print("📩 Push received. historyId:", new_history_id)
+    print("📩 Push notification received.")
 
     try:
         with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
@@ -114,60 +106,57 @@ def gmail_webhook():
         creds = Credentials.from_authorized_user_info(creds_data)
         service = build('gmail', 'v1', credentials=creds)
 
-        # Get previous historyId
-        previous_history_id = load_last_history_id()
-        if not previous_history_id:
-            print("⚠️ No stored historyId. Skipping.")
-            return "No previous historyId", 200
+        # Get the most recent message in the INBOX
+        result = service.users().messages().list(userId='me', labelIds=['INBOX'], maxResults=1).execute()
+        messages = result.get('messages', [])
 
-        # Get history changes
-        history_result = service.users().history().list(
-            userId='me',
-            startHistoryId=previous_history_id,
-            historyTypes=['messageAdded']
+        if not messages:
+            print("⚠️ No new messages found.")
+            return "No messages found", 200
+
+        msg_id = messages[0]['id']
+
+        if msg_id in processed_ids:
+            print(f"🔁 Duplicate message {msg_id} skipped.")
+            return "Duplicate message", 200
+
+        processed_ids.add(msg_id)
+
+        msg_data = service.users().messages().get(
+            userId='me', id=msg_id, format='metadata', metadataHeaders=['Subject']
         ).execute()
 
-        messages = []
-        for h in history_result.get('history', []):
-            messages.extend(h.get('messagesAdded', []))
+        subject = next((h['value'] for h in msg_data['payload']['headers'] if h['name'] == 'Subject'), '')
+        snippet = msg_data.get('snippet', '')
 
-        print(f"🆕 Found {len(messages)} new message(s).")
+        # Call classifier
+        classify_response = requests.post(
+            'https://inbox-assistant-x5uk.onrender.com/classify',
+            json={"subject": subject, "snippet": snippet}
+        )
+        label = classify_response.json().get('label', 'Other')
+        print(f"🏷️ Message {msg_id} classified as {label}")
 
-        for msg_info in messages:
-            msg_id = msg_info['message']['id']
-            msg_data = service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['Subject']).execute()
-            subject = next((h['value'] for h in msg_data['payload']['headers'] if h['name'] == 'Subject'), '')
-            snippet = msg_data.get('snippet', '')
+        # Add label to Gmail
+        all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
+        label_ids = {lbl['name']: lbl['id'] for lbl in all_labels}
+        if label not in label_ids:
+            new_label = service.users().labels().create(userId='me', body={"name": label}).execute()
+            label_ids[label] = new_label['id']
 
-            # Call classifier
-            classify_response = requests.post(
-                'https://inbox-assistant-x5uk.onrender.com/classify',
-                json={"subject": subject, "snippet": snippet}
-            )
-            label = classify_response.json().get('label', 'Other')
-            print(f"🏷️ Message {msg_id} classified as {label}")
-
-            # Add label to Gmail
-            all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
-            label_ids = {lbl['name']: lbl['id'] for lbl in all_labels}
-            if label not in label_ids:
-                new_label = service.users().labels().create(userId='me', body={"name": label}).execute()
-                label_ids[label] = new_label['id']
-
-            service.users().messages().modify(
-                userId='me',
-                id=msg_id,
-                body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
-            ).execute()
-
-        # Update last seen historyId
-        save_last_history_id(new_history_id)
+        service.users().messages().modify(
+            userId='me',
+            id=msg_id,
+            body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
+        ).execute()
 
         return "OK", 200
 
     except Exception as e:
         print(f"❌ Error handling webhook: {e}")
         return f"Error: {e}", 500
+
+
 
     
 
