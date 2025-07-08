@@ -10,8 +10,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import current_app
 
-# Set needed because changing the inbox is automatically triggering the webhook
-processed_ids = set()
+
 
 app = Flask(__name__)
 
@@ -89,6 +88,7 @@ def start_watch():
     
 @app.route('/gmail_webhook', methods=['POST'])
 def gmail_webhook():
+    print("Entered webhook", flush=True)
     envelope = request.get_json()
     if not envelope or 'message' not in envelope:
         return 'Invalid message format', 400
@@ -115,12 +115,6 @@ def gmail_webhook():
             return '\n'.join(status_messages), 200
 
         msg_id = messages[0]['id']
-
-        if msg_id in processed_ids:
-            status_messages.append(f"🔁 Duplicate message {msg_id} skipped.")
-            return '\n'.join(status_messages), 200
-
-        processed_ids.add(msg_id)
 
         msg_data = service.users().messages().get(
             userId='me', id=msg_id, format='metadata', metadataHeaders=['Subject']
