@@ -98,7 +98,7 @@ def gmail_webhook():
     if not data:
         return 'No data in message', 204
 
-    print("📩 Push notification received.")
+    status_messages = ["📩 Push notification received."]
 
     try:
         with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
@@ -111,14 +111,14 @@ def gmail_webhook():
         messages = result.get('messages', [])
 
         if not messages:
-            print("⚠️ No new messages found.")
-            return "No messages found", 200
+            status_messages.append("⚠️ No new messages found.")
+            return '\n'.join(status_messages), 200
 
         msg_id = messages[0]['id']
 
         if msg_id in processed_ids:
-            print(f"🔁 Duplicate message {msg_id} skipped.")
-            return "Duplicate message", 200
+            status_messages.append(f"🔁 Duplicate message {msg_id} skipped.")
+            return '\n'.join(status_messages), 200
 
         processed_ids.add(msg_id)
 
@@ -128,14 +128,17 @@ def gmail_webhook():
 
         subject = next((h['value'] for h in msg_data['payload']['headers'] if h['name'] == 'Subject'), '')
         snippet = msg_data.get('snippet', '')
+        status_messages.append(f"📬 Processing message ID: {msg_id}")
+        status_messages.append(f"✉️ Subject: {subject}")
 
         # Call classifier
         classify_response = requests.post(
             'https://inbox-assistant-x5uk.onrender.com/classify',
             json={"subject": subject, "snippet": snippet}
         )
+
         label = classify_response.json().get('label', 'Other')
-        print(f"🏷️ Message {msg_id} classified as {label}")
+        status_messages.append(f"🏷️ Message classified as: {label}")
 
         # Add label to Gmail
         all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
@@ -143,6 +146,7 @@ def gmail_webhook():
         if label not in label_ids:
             new_label = service.users().labels().create(userId='me', body={"name": label}).execute()
             label_ids[label] = new_label['id']
+            status_messages.append(f"➕ Created new label: {label}")
 
         service.users().messages().modify(
             userId='me',
@@ -150,11 +154,13 @@ def gmail_webhook():
             body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
         ).execute()
 
-        return "OK", 200
+        status_messages.append("✅ Label applied and message marked as read.")
+        return '\n'.join(status_messages), 200
 
     except Exception as e:
-        print(f"❌ Error handling webhook: {e}")
-        return f"Error: {e}", 500
+        status_messages.append(f"❌ Error: {str(e)}")
+        return '\n'.join(status_messages), 500
+
 
 
 
