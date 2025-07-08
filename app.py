@@ -97,9 +97,12 @@ def gmail_webhook():
     message = envelope['message']
     data = message.get('data')
     if not data:
+        print('\n'.join(status_messages))
         return 'No data in message', 204
 
     status_messages = ["📩 Push notification received."]
+
+
 
     try:
         with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
@@ -113,6 +116,7 @@ def gmail_webhook():
 
         if not messages:
             status_messages.append("⚠️ No new messages found.")
+            print('\n'.join(status_messages))
             return '\n'.join(status_messages), 200
 
         msg_id = messages[0]['id']
@@ -125,6 +129,8 @@ def gmail_webhook():
         snippet = msg_data.get('snippet', '')
         status_messages.append(f"📬 Processing message ID: {msg_id}")
         status_messages.append(f"✉️ Subject: {subject}")
+
+
 
         # Call classifier
         classify_response = requests.post(
@@ -146,18 +152,17 @@ def gmail_webhook():
         service.users().messages().modify(
             userId='me',
             id=msg_id,
-            body={"addLabelIds": [label_ids[label]], "removeLabelIds": ["UNREAD"]}
+            body={"addLabelIds": [label_ids[label]]}
         ).execute()
 
-        status_messages.append("✅ Label applied and message marked as read.")
+        status_messages.append("✅ Label applied")
+        print('\n'.join(status_messages))
         return '\n'.join(status_messages), 200
 
     except Exception as e:
         status_messages.append(f"❌ Error: {str(e)}")
-
         # TEMPORARY DEBUG PRINT — so it shows in Render logs
         print('\n'.join(status_messages))
-
         return '\n'.join(status_messages), 500
 
 
