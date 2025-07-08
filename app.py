@@ -4,6 +4,7 @@ from classifier import classify_email
 import os
 
 import base64
+import requests
 
 import json
 from google.oauth2.credentials import Credentials
