@@ -11,6 +11,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import current_app
 
+history_id = 0
 
 
 app = Flask(__name__)
@@ -82,9 +83,6 @@ def start_watch():
         history_id = response.get('historyId')
         print("Watch registered:", response)
 
-        with open("hid.txt", "w") as f:
-            f.write(str(history_id))
-
         return jsonify(response)
 
     except Exception as e:
@@ -107,9 +105,8 @@ def gmail_webhook():
         service = build('gmail', 'v1', credentials=creds)
 
         # Read last saved historyId
-        if os.path.exists("hid.txt"):
-            with open("hid.txt", "r") as f:
-                saved_history_id = f.read().strip()
+        if history_id:
+            saved_history_id = f.read().strip()
         else:
             status_messages.append("⚠️ No previous historyId found.")
             return '\n'.join(status_messages), 200
@@ -122,10 +119,7 @@ def gmail_webhook():
         ).execute()
 
         # Get new highest historyId
-        new_history_id = history.get('historyId')
-        if new_history_id:
-            with open("hid.txt", "w") as f:
-                f.write(str(new_history_id))
+        history_id = history.get('historyId')
 
         new_messages = []
         for h in history.get('history', []):
