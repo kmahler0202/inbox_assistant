@@ -159,6 +159,10 @@ def gmail_webhook():
 
     except Exception as e:
         status_messages.append(f"❌ Error: {str(e)}")
+
+        # TEMPORARY DEBUG PRINT — so it shows in Render logs
+        print('\n'.join(status_messages))
+
         return '\n'.join(status_messages), 500
 
 
