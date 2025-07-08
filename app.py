@@ -11,7 +11,7 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import current_app
 
-history_id = 0
+history_id = None
 
 
 app = Flask(__name__)
@@ -64,6 +64,7 @@ def classify():
 
 @app.route('/start_watch')
 def start_watch():
+    global history_id
     try:
         # Read the secret file contents from disk
         with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
@@ -91,6 +92,7 @@ def start_watch():
 
 @app.route('/gmail_webhook', methods=['POST'])
 def gmail_webhook():
+    global history_id
     print("Entered webhook", flush=True)
     envelope = request.get_json()
     if not envelope or 'message' not in envelope:
