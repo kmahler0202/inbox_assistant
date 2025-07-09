@@ -173,11 +173,50 @@ def gmail_webhook():
 
         print('\n'.join(status_messages))
         return '\n'.join(status_messages), 200
+    
+    
 
     except Exception as e:
         status_messages.append(f"❌ Error: {str(e)}")
         print('\n'.join(status_messages))
         return '\n'.join(status_messages), 500
+
+@app.route('/save_settings', methods=['POST'])
+def save_settings():
+    data = request.get_json()
+    email = data.get("email")
+
+    if not email:
+        return jsonify({"error": "Missing email"}), 400
+
+    # Save all settings under a Redis hash
+    r.hset(f"user:{email}:settings", mapping={
+        "autoSortEnabled": data.get("autoSortEnabled", False),
+        "sortingLabels": json.dumps(data.get("sortingLabels", [])),
+        "customLabels": json.dumps(data.get("customLabels", [])),
+        "summarizerEnabled": data.get("summarizerEnabled", False),
+        "digestEnabled": data.get("digestEnabled", False),
+        "digestTime": data.get("digestTime", ""),
+        "actionItemsEnabled": data.get("actionItemsEnabled", False),
+        "draftRepliesEnabled": data.get("draftRepliesEnabled", False),
+        "followUpEnabled": data.get("followUpEnabled", False),
+        "chatAssistantEnabled": data.get("chatAssistantEnabled", False)
+    })
+
+    # Mark user as onboarded
+    r.set(f"user:{email}:onboarded", "true")
+
+    return jsonify({"status": "ok"})
+
+@app.route("/is_onboarded", methods=["POST"])
+def is_onboarded():
+    data = request.get_json()
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "No email provided"}), 400
+
+    status = r.get(f"user:{email}:onboarded")
+    return jsonify({"onboarded": status == "true"})
 
 
 if __name__ == '__main__':
