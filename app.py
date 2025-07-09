@@ -218,5 +218,30 @@ def is_onboarded():
     return jsonify({"onboarded": status == "true"})
 
 
+@app.route('/get_settings', methods=['POST'])
+def get_settings():
+    data = request.get_json()
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "Missing email"}), 400
+
+    settings = r.hgetall(f"user:{email}:settings")
+    
+    for key in settings:
+        val = settings[key]
+        if val == "True":
+            settings[key] = True
+        elif val == "False":
+            settings[key] = False
+        else:
+            try:
+                settings[key] = json.loads(val)
+            except:
+                pass  # leave as string
+
+    return jsonify(settings)
+
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
