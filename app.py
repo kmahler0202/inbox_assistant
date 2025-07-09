@@ -185,15 +185,6 @@ def gmail_webhook():
 def save_settings():
     data = request.get_json()
     email = data.get("email")
-
-    if not email:
-        return jsonify({"error": "Missing email"}), 400
-
-    # Save all settings under a Redis hash
-@app.route('/save_settings', methods=['POST'])
-def save_settings():
-    data = request.get_json()
-    email = data.get("email")
     if not email:
         return jsonify({"error": "Missing email"}), 400
 
