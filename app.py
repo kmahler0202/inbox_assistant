@@ -190,17 +190,25 @@ def save_settings():
         return jsonify({"error": "Missing email"}), 400
 
     # Save all settings under a Redis hash
+@app.route('/save_settings', methods=['POST'])
+def save_settings():
+    data = request.get_json()
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "Missing email"}), 400
+
+    # Convert all values to strings before saving to Redis
     r.hset(f"user:{email}:settings", mapping={
-        "autoSortEnabled": data.get("autoSortEnabled", False),
+        "autoSortEnabled": str(data.get("autoSortEnabled", False)),
         "sortingLabels": json.dumps(data.get("sortingLabels", [])),
         "customLabels": json.dumps(data.get("customLabels", [])),
-        "summarizerEnabled": data.get("summarizerEnabled", False),
-        "digestEnabled": data.get("digestEnabled", False),
-        "digestTime": data.get("digestTime", ""),
-        "actionItemsEnabled": data.get("actionItemsEnabled", False),
-        "draftRepliesEnabled": data.get("draftRepliesEnabled", False),
-        "followUpEnabled": data.get("followUpEnabled", False),
-        "chatAssistantEnabled": data.get("chatAssistantEnabled", False)
+        "summarizerEnabled": str(data.get("summarizerEnabled", False)),
+        "digestEnabled": str(data.get("digestEnabled", False)),
+        "digestTime": str(data.get("digestTime", "")),
+        "actionItemsEnabled": str(data.get("actionItemsEnabled", False)),
+        "draftRepliesEnabled": str(data.get("draftRepliesEnabled", False)),
+        "followUpEnabled": str(data.get("followUpEnabled", False)),
+        "chatAssistantEnabled": str(data.get("chatAssistantEnabled", False))
     })
 
     # Mark user as onboarded
