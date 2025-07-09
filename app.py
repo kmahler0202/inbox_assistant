@@ -11,8 +11,9 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from flask import current_app
 
-history_id = None
+import redis
 
+r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
 
 app = Flask(__name__)
 
@@ -64,7 +65,7 @@ def classify():
 
 @app.route('/start_watch')
 def start_watch():
-    global history_id
+    
     try:
         # Read the secret file contents from disk
         with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
@@ -82,7 +83,10 @@ def start_watch():
 
         response = service.users().watch(userId='me', body=request).execute()
         history_id = response.get('historyId')
-        print("Watch registered:", response)
+
+        r.set("gmail:history_id", str(history_id))
+
+        print("Watch registered:", response,)
 
         return jsonify(response)
 
@@ -92,7 +96,6 @@ def start_watch():
 
 @app.route('/gmail_webhook', methods=['POST'])
 def gmail_webhook():
-    global history_id
     print("Entered webhook", flush=True)
     envelope = request.get_json()
     if not envelope or 'message' not in envelope:
@@ -107,11 +110,9 @@ def gmail_webhook():
         service = build('gmail', 'v1', credentials=creds)
 
         # Read last saved historyId
-        if history_id:
-            saved_history_id = f.read().strip()
-        else:
-            status_messages.append("⚠️ No previous historyId found.")
-            return '\n'.join(status_messages), 200
+        saved_history_id = r.get("gmail:history_id")
+        if not saved_history_id:
+            return "⚠️ No historyId stored in Redis yet.", 400
 
         # Get history since last known point
         history = service.users().history().list(
@@ -121,7 +122,8 @@ def gmail_webhook():
         ).execute()
 
         # Get new highest historyId
-        history_id = history.get('historyId')
+        if 'historyId' in history:
+            r.set("gmail:history_id", str(history['historyId']))
 
         new_messages = []
         for h in history.get('history', []):
