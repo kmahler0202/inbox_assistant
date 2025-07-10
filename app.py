@@ -205,6 +205,8 @@ def save_settings():
     # Mark user as onboarded
     r.set(f"user:{email}:onboarded", "true")
 
+    print('User saved settings.')
+
     return jsonify({"status": "ok"})
 
 @app.route("/is_onboarded", methods=["POST"])
@@ -226,6 +228,7 @@ def get_settings():
         return jsonify({"error": "Missing email"}), 400
 
     settings = r.hgetall(f"user:{email}:settings")
+    print('Got Settings', flush=True)
     
     for key in settings:
         val = settings[key]
@@ -240,6 +243,14 @@ def get_settings():
                 pass  # leave as string
 
     return jsonify(settings)
+
+
+# debugging route to show whats in the database
+@app.route('/debug/redis')
+def debug_redis():
+    keys = r.keys("*")  # get all keys
+    data = {key: r.get(key) for key in keys}
+    return jsonify(data)
 
 
 
