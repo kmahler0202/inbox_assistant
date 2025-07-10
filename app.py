@@ -177,7 +177,7 @@ def gmail_webhook():
 
             # STAT TRACKING TO GO HERE'
 
-            increment_stat(h.get('linked_gmail_user'), 'emailsSorted')
+            increment_stat(r.get('linked_gmail_user'), 'emailsSorted')
 
         print('\n'.join(status_messages))
         return '\n'.join(status_messages), 200
