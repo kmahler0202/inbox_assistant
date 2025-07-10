@@ -13,7 +13,7 @@ from flask import current_app
 
 import redis
 
-r = redis.from_url(os.environ['REDIS_URL'])
+r = redis.from_url(os.environ['REDIS_URL'], decode_responses=True)
 
 app = Flask(__name__)
 
