@@ -181,7 +181,7 @@ const sortingSection = CardService.newCardSection()
     CardService.newTextInput()
       .setFieldName("customLabels")
       .setTitle("Add custom labels (optional)")
-      .setValue((settings.customLabels || []).join(", "))
+      .setValue("")
       .setHint("Separate with commas: e.g. School, Family")
   );
 
@@ -298,27 +298,17 @@ const sortingSection = CardService.newCardSection()
 
 
 function saveSortingSettings(e) {
-  const form = e.commonEventObject.formInputs;
+  
+  var email = Session.getActiveUser().getEmail();
+  var form = e.formInput;
 
-  const settings = {
-    email: Session.getActiveUser().getEmail(),  // user identifier
-    autoSortEnabled: isChecked(form.autoSortEnabled),
-    sortingLabels: getList(form.sortingLabels),
-    customLabels: getListFromStringInput(form.customLabels),
-    summarizerEnabled: isChecked(form.summarizerEnabled),
-    digestEnabled: isChecked(form.digestEnabled),
-    digestTime: getSingleValue(form.digestTime),
-    actionItemsEnabled: isChecked(form.actionItemsEnabled),
-    draftRepliesEnabled: isChecked(form.draftRepliesEnabled),
-    followUpEnabled: isChecked(form.followUpEnabled),
-    chatAssistantEnabled: isChecked(form.chatAssistantEnabled)
-  };
+  form.email = email
 
   // Send to Flask backend
   UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/save_settings", {
     method: "post",
     contentType: "application/json",
-    payload: JSON.stringify(settings)
+    payload: JSON.stringify(form)
   });
 
   // Return to home page or show a confirmation card

@@ -13,6 +13,8 @@ from flask import current_app
 
 import redis
 
+from datetime import datetime
+
 r = redis.from_url(os.environ['REDIS_URL'], decode_responses=True)
 
 app = Flask(__name__)
@@ -155,6 +157,8 @@ def gmail_webhook():
             label = classify_response.json().get('label', 'Other')
             status_messages.append(f"🏷️ Message classified as: {label}")
 
+            
+
             # Label handling
             all_labels = service.users().labels().list(userId='me').execute().get('labels', [])
             label_ids = {lbl['name']: lbl['id'] for lbl in all_labels}
@@ -170,6 +174,10 @@ def gmail_webhook():
             ).execute()
 
             status_messages.append("✅ Label applied")
+
+            # STAT TRACKING TO GO HERE'
+
+            increment_stat(h.get('linked_gmail_user'), 'emailsSorted')
 
         print('\n'.join(status_messages))
         return '\n'.join(status_messages), 200
@@ -205,6 +213,8 @@ def save_settings():
 
     # Mark user as onboarded
     r.set(f"user:{email}:onboarded", "true")
+
+    r.set("linked_gmail_user", email)
 
     print('User saved settings.', flush=True)
 
@@ -279,6 +289,28 @@ def debug_redis():
 
     return jsonify(data)
 
+@app.route("/get_stats", methods=["POST"])
+def get_stats():
+    data = request.get_json()
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "Missing email"}), 400
+
+    today = str(datetime.utcnow().date())
+    key = f"stats:{email}:{today}"
+    raw = r.hgetall(key)
+
+    # Normalize stats
+    stats = {
+        "emailsReceived": int(raw.get("emailsReceived", 0)),
+        "emailsSorted": int(raw.get("emailsSorted", 0)),
+        "summariesGenerated": int(raw.get("summariesGenerated", 0)),
+        "actionItemsExtracted": int(raw.get("actionItemsExtracted", 0)),
+    }
+
+    return jsonify(stats)
+
+
 
 
 def to_bool(val):
@@ -289,6 +321,10 @@ def to_bool(val):
     if isinstance(val, str):
         return val.strip().lower() in ["true", "1", "yes", "on", "enabled"]
     return bool(val)
+
+def increment_stat(email, field):
+    today_key = f"stats:{email}:{datetime.utcnow().date()}"
+    r.hincrby(today_key, field, 1)
 
 
 if __name__ == '__main__':
