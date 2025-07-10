@@ -190,17 +190,18 @@ def save_settings():
 
     # Convert all values to strings before saving to Redis
     r.hset(f"user:{email}:settings", mapping={
-        "autoSortEnabled": str(data.get("autoSortEnabled", False)),
+        "autoSortEnabled": str(to_bool(data.get("autoSortEnabled"))),
         "sortingLabels": json.dumps(data.get("sortingLabels", [])),
         "customLabels": json.dumps(data.get("customLabels", [])),
-        "summarizerEnabled": str(data.get("summarizerEnabled", False)),
-        "digestEnabled": str(data.get("digestEnabled", False)),
+        "summarizerEnabled": str(to_bool(data.get("summarizerEnabled"))),
+        "digestEnabled": str(to_bool(data.get("digestEnabled"))),
         "digestTime": str(data.get("digestTime", "")),
-        "actionItemsEnabled": str(data.get("actionItemsEnabled", False)),
-        "draftRepliesEnabled": str(data.get("draftRepliesEnabled", False)),
-        "followUpEnabled": str(data.get("followUpEnabled", False)),
-        "chatAssistantEnabled": str(data.get("chatAssistantEnabled", False))
+        "actionItemsEnabled": str(to_bool(data.get("actionItemsEnabled"))),
+        "draftRepliesEnabled": str(to_bool(data.get("draftRepliesEnabled"))),
+        "followUpEnabled": str(to_bool(data.get("followUpEnabled"))),
+        "chatAssistantEnabled": str(to_bool(data.get("chatAssistantEnabled")))
     })
+
 
     # Mark user as onboarded
     r.set(f"user:{email}:onboarded", "true")
@@ -279,6 +280,13 @@ def debug_redis():
     return jsonify(data)
 
 
+
+def to_bool(val):
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.strip().lower() in ["true", "1", "yes", "on"]
+    return bool(val)
 
 
 if __name__ == '__main__':

@@ -135,10 +135,9 @@ function buildWelcomePage(e) {
 
 
 function showConfigPage(e) {
-
-// START IS GET SETTINGS LOGIC
   const email = Session.getActiveUser().getEmail();
 
+  // Fetch saved settings from backend
   const response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/get_settings", {
     method: "post",
     contentType: "application/json",
@@ -147,141 +146,127 @@ function showConfigPage(e) {
 
   const settings = JSON.parse(response.getContentText());
 
-  // Example: Inbox Sorting Toggle
-  const sortingToggle = CardService.newSelectionInput()
-    .setType(CardService.SelectionInputType.CHECK_BOX)
-    .setFieldName("autoSortEnabled")
-    .addItem("Enable automatic inbox sorting", "enabled", isChecked(settings.autoSortEnabled));
-// END GET SETTINGS LOGIC
+  var labels = [];
+  try {
+    if (typeof settings.sortingLabels === "string") {
+      labels = JSON.parse(settings.sortingLabels);
+    } else if (Array.isArray(settings.sortingLabels)) {
+      labels = settings.sortingLabels;
+    }
+  } catch (e) {
+    labels = [];
+  }
 
-// START SORTING
-  const sortingSection = CardService.newCardSection()
-    .setHeader("📂 Inbox Sorting")
-    .setCollapsible(true)
-    .setNumUncollapsibleWidgets(0)  // makes it start collapsed
+const sortingSection = CardService.newCardSection()
+  .setHeader("📂 Inbox Sorting")
+  .setCollapsible(true)
+  .setNumUncollapsibleWidgets(0)
+  .addWidget(
+    CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.CHECK_BOX)
+      .setFieldName("autoSortEnabled")
+      .addItem("Enable automatic inbox sorting", "enabled", isChecked(settings.autoSortEnabled))
+  )
+  .addWidget(
+    CardService.newSelectionInput()
+      .setType(CardService.SelectionInputType.CHECK_BOX)
+      .setTitle("Select labels to apply")
+      .setFieldName("sortingLabels")
+      .addItem("📁 Work", "Work", labels.indexOf("Work") !== -1)
+      .addItem("🏠 Personal", "Personal", labels.indexOf("Personal") !== -1)
+      .addItem("🏷️ Promotions", "Promotions", labels.indexOf("Promotions") !== -1)
+      .addItem("📬 Newsletters", "Newsletter", labels.indexOf("Newsletter") !== -1)
+  )
+  .addWidget(
+    CardService.newTextInput()
+      .setFieldName("customLabels")
+      .setTitle("Add custom labels (optional)")
+      .setValue((settings.customLabels || []).join(", "))
+      .setHint("Separate with commas: e.g. School, Family")
+  );
 
-    .addWidget(
-      CardService.newSelectionInput()
-        .setType(CardService.SelectionInputType.CHECK_BOX)
-        .setFieldName("autoSortEnabled")
-        .addItem("Enable automatic inbox sorting", "enabled", false)
-    )
-
-    .addWidget(
-      CardService.newSelectionInput()
-        .setType(CardService.SelectionInputType.CHECK_BOX)
-        .setTitle("Select labels to apply")
-        .setFieldName("sortingLabels")
-        .addItem("📁 Work", "Work", true)
-        .addItem("🏠 Personal", "Personal", true)
-        .addItem("🏷️ Promotions", "Promotions", false)
-        .addItem("📬 Newsletters", "Newsletter", false)
-    )
-
-    .addWidget(
-      CardService.newTextInput()
-        .setFieldName("customLabels")
-        .setTitle("Add custom labels (optional)")
-        .setHint("Separate with commas: e.g. School, Family")
-    );
-// END SORTING
-
-
-// START SUMMARIZER
+  // 📝 Summarizer Section
   const summarizerSection = CardService.newCardSection()
     .setHeader("📝 Email Summarization")
     .setCollapsible(true)
     .setNumUncollapsibleWidgets(0)
-
     .addWidget(
       CardService.newSelectionInput()
         .setType(CardService.SelectionInputType.CHECK_BOX)
         .setFieldName("summarizerEnabled")
-        .addItem("Enable email summarization feature", "enabled", false)
+        .addItem("Enable email summarization feature", "enabled", isChecked(settings.summarizerEnabled))
     );
-// END SUMMARIZER
 
-// START DIGEST
+  // 🕒 Daily Digest Section
   const digestSection = CardService.newCardSection()
     .setHeader("🕒 Daily Digest")
     .setCollapsible(true)
     .setNumUncollapsibleWidgets(0)
-
     .addWidget(
       CardService.newSelectionInput()
         .setType(CardService.SelectionInputType.CHECK_BOX)
         .setFieldName("digestEnabled")
-        .addItem("Enable daily email digests", "enabled", false)
+        .addItem("Enable daily email digests", "enabled", isChecked(settings.digestEnabled))
     )
-
     .addWidget(
       CardService.newSelectionInput()
         .setType(CardService.SelectionInputType.DROPDOWN)
         .setTitle("Delivery time")
         .setFieldName("digestTime")
-        .addItem("8:00 AM", "08:00", false)
-        .addItem("12:00 PM", "12:00", false)
-        .addItem("6:00 PM", "18:00", false)
+        .addItem("8:00 AM", "08:00", settings.digestTime === "08:00")
+        .addItem("12:00 PM", "12:00", settings.digestTime === "12:00")
+        .addItem("6:00 PM", "18:00", settings.digestTime === "18:00")
     );
-// END DIGEST
 
-// START EXTRACT ACTION ITEMS
-    // ✅ Extract Action Items section
+  // 📌 Action Items Section
   const actionItemSection = CardService.newCardSection()
-  .setHeader("📌 Extract Action Items")
-  .setCollapsible(true)
-  .setNumUncollapsibleWidgets(0)
+    .setHeader("📌 Extract Action Items")
+    .setCollapsible(true)
+    .setNumUncollapsibleWidgets(0)
+    .addWidget(
+      CardService.newSelectionInput()
+        .setType(CardService.SelectionInputType.CHECK_BOX)
+        .setFieldName("actionItemsEnabled")
+        .addItem("Enable action item detection in emails", "enabled", isChecked(settings.actionItemsEnabled))
+    );
 
-  .addWidget(
-    CardService.newSelectionInput()
-      .setType(CardService.SelectionInputType.CHECK_BOX)
-      .setFieldName("actionItemsEnabled")
-      .addItem("Enable action item detection in emails", "enabled", false)
-  );
-// END EXTRACT ACTION ITEMS
+  // ✍️ Draft Replies Section
+  const draftReplySection = CardService.newCardSection()
+    .setHeader("✍️ Draft Smart Replies")
+    .setCollapsible(true)
+    .setNumUncollapsibleWidgets(0)
+    .addWidget(
+      CardService.newSelectionInput()
+        .setType(CardService.SelectionInputType.CHECK_BOX)
+        .setFieldName("draftRepliesEnabled")
+        .addItem("Enable smart draft replies", "enabled", isChecked(settings.draftRepliesEnabled))
+    );
 
-// ✍️ Draft Smart Replies
-const draftReplySection = CardService.newCardSection()
-  .setHeader("✍️ Draft Smart Replies")
-  .setCollapsible(true)
-  .setNumUncollapsibleWidgets(0)
-  .addWidget(
-    CardService.newSelectionInput()
-      .setType(CardService.SelectionInputType.CHECK_BOX)
-      .setFieldName("draftRepliesEnabled")
-      .addItem("Enable smart draft replies (never sent without approval)", "enabled", false)
-  );
+  // ⏰ Follow-Up Tracker Section
+  const followUpSection = CardService.newCardSection()
+    .setHeader("⏰ Follow-Up Tracker")
+    .setCollapsible(true)
+    .setNumUncollapsibleWidgets(0)
+    .addWidget(
+      CardService.newSelectionInput()
+        .setType(CardService.SelectionInputType.CHECK_BOX)
+        .setFieldName("followUpEnabled")
+        .addItem("Enable follow-up reminders", "enabled", isChecked(settings.followUpEnabled))
+    );
 
-// ⏰ Follow-Up Tracker
-const followUpSection = CardService.newCardSection()
-  .setHeader("⏰ Follow-Up Tracker")
-  .setCollapsible(true)
-  .setNumUncollapsibleWidgets(0)
-  .addWidget(
-    CardService.newSelectionInput()
-      .setType(CardService.SelectionInputType.CHECK_BOX)
-      .setFieldName("followUpEnabled")
-      .addItem("Enable follow-up reminders for unreplied emails", "enabled", false)
-  );
+  // 💬 Chat Assistant Section
+  const chatAssistantSection = CardService.newCardSection()
+    .setHeader("💬 GPT Chat Assistant")
+    .setCollapsible(true)
+    .setNumUncollapsibleWidgets(0)
+    .addWidget(
+      CardService.newSelectionInput()
+        .setType(CardService.SelectionInputType.CHECK_BOX)
+        .setFieldName("chatAssistantEnabled")
+        .addItem("Enable GPT chat inside inbox", "enabled", isChecked(settings.chatAssistantEnabled))
+    );
 
-// 💬 GPT Chat Assistant
-const chatAssistantSection = CardService.newCardSection()
-  .setHeader("💬 GPT Chat Assistant")
-  .setCollapsible(true)
-  .setNumUncollapsibleWidgets(0)
-  .addWidget(
-    CardService.newSelectionInput()
-      .setType(CardService.SelectionInputType.CHECK_BOX)
-      .setFieldName("chatAssistantEnabled")
-      .addItem("Enable chat assistant inside your inbox", "enabled", false)
-  );
-
-
-
-
-
-  // SAVE + BACK BUTTON 
-
+  // ✅ Save + Back Buttons
   const saveAction = CardService.newAction().setFunctionName("saveSortingSettings");
 
   const saveButton = CardService.newTextButton()
@@ -291,13 +276,13 @@ const chatAssistantSection = CardService.newCardSection()
 
   const backButton = CardService.newTextButton()
     .setText("Back")
-    .setOnClickAction(CardService.newAction().setFunctionName("buildAddOn"));
+    .setOnClickAction(CardService.newAction().setFunctionName("buildHomePage"));
 
   const buttonSection = CardService.newCardSection()
     .addWidget(saveButton)
     .addWidget(backButton);
 
-  const card = CardService.newCardBuilder()
+  return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader().setTitle("Configure Inbox Assistant"))
     .addSection(sortingSection)
     .addSection(summarizerSection)
@@ -308,9 +293,9 @@ const chatAssistantSection = CardService.newCardSection()
     .addSection(chatAssistantSection)
     .addSection(buttonSection)
     .build();
-
-  return card;
 }
+
+
 
 function saveSortingSettings(e) {
   const form = e.commonEventObject.formInputs;
