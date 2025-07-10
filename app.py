@@ -13,7 +13,7 @@ from flask import current_app
 
 import redis
 
-r = redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
+r = redis.from_url(os.environ['REDIS_URL'])
 
 app = Flask(__name__)
 
@@ -205,7 +205,7 @@ def save_settings():
     # Mark user as onboarded
     r.set(f"user:{email}:onboarded", "true")
 
-    print('User saved settings.')
+    print('User saved settings.', flush=True)
 
     return jsonify({"status": "ok"})
 
@@ -248,6 +248,15 @@ def get_settings():
 # debugging route to show whats in the database
 @app.route('/debug/redis')
 def debug_redis():
+
+    try:
+        r.ping()
+        print("Connected to Redis Succesfully", flush=True)
+    except Exception as e:
+        print('Redis connection failed', flush=True)
+
+
+
     keys = r.keys("*")
     data = {}
 
