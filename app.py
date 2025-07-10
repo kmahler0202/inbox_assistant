@@ -248,9 +248,27 @@ def get_settings():
 # debugging route to show whats in the database
 @app.route('/debug/redis')
 def debug_redis():
-    keys = r.keys("*")  # get all keys
-    data = {key: r.get(key) for key in keys}
+    keys = r.keys("*")
+    data = {}
+
+    for key in keys:
+        try:
+            key_type = r.type(key)
+            if key_type == 'string':
+                data[key] = r.get(key)
+            elif key_type == 'list':
+                data[key] = r.lrange(key, 0, -1)
+            elif key_type == 'hash':
+                data[key] = r.hgetall(key)
+            elif key_type == 'set':
+                data[key] = list(r.smembers(key))
+            else:
+                data[key] = f"(unhandled type: {key_type})"
+        except Exception as e:
+            data[key] = f"(error: {str(e)})"
+
     return jsonify(data)
+
 
 
 
