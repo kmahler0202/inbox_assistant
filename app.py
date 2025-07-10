@@ -191,15 +191,15 @@ def save_settings():
     # Convert all values to strings before saving to Redis
     r.hset(f"user:{email}:settings", mapping={
         "autoSortEnabled": str(to_bool(data.get("autoSortEnabled"))),
-        "sortingLabels": json.dumps(data.get("sortingLabels", [])),
-        "customLabels": json.dumps(data.get("customLabels", [])),
         "summarizerEnabled": str(to_bool(data.get("summarizerEnabled"))),
         "digestEnabled": str(to_bool(data.get("digestEnabled"))),
         "digestTime": str(data.get("digestTime", "")),
         "actionItemsEnabled": str(to_bool(data.get("actionItemsEnabled"))),
         "draftRepliesEnabled": str(to_bool(data.get("draftRepliesEnabled"))),
         "followUpEnabled": str(to_bool(data.get("followUpEnabled"))),
-        "chatAssistantEnabled": str(to_bool(data.get("chatAssistantEnabled")))
+        "chatAssistantEnabled": str(to_bool(data.get("chatAssistantEnabled"))),
+        "sortingLabels": json.dumps(data.get("sortingLabels", [])),
+        "customLabels": json.dumps(data.get("customLabels", []))
     })
 
 
@@ -284,8 +284,10 @@ def debug_redis():
 def to_bool(val):
     if isinstance(val, bool):
         return val
+    if isinstance(val, list):  # checkbox fields like ["enabled"]
+        return "enabled" in val
     if isinstance(val, str):
-        return val.strip().lower() in ["true", "1", "yes", "on"]
+        return val.strip().lower() in ["true", "1", "yes", "on", "enabled"]
     return bool(val)
 
 
