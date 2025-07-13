@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from openai import OpenAI
 from classifier import classify_email
 from summarizer import summarize_email
+from digest import build_digest
 import os
 
 import base64
@@ -168,10 +169,18 @@ def gmail_webhook():
                 label_ids[label] = new_label['id']
                 status_messages.append(f"🆕 Created new label: {label}")
 
+            modified_body = {
+                "addLabelIds": [label_ids[label]],
+                "removeLabelIds": []
+            }
+
+            if label == "Promotions":
+                modified_body["removeLabelIds"].append("INBOX")
+
             service.users().messages().modify(
                 userId='me',
                 id=msg_id,
-                body={"addLabelIds": [label_ids[label]]}
+                body=modified_body
             ).execute()
 
             status_messages.append("✅ Label applied")
@@ -320,6 +329,43 @@ def summarize():
     
     summary = summarize_email(subject, body)
     return jsonify({"summary": summary})
+
+@app.route('/daily_digest', methods=['POST'])
+def daily_digest():
+    from datetime import datetime, timedelta
+
+    data = request.get_json()
+    email = data.get("email")
+    if not email:
+        return jsonify({"error": "Missing email"}), 400
+
+    last_digest_time_str = r.get(f"user:{email}:last_digest_time")
+    if last_digest_time_str:
+        last_digest_time = datetime.fromisoformat(last_digest_time_str)
+    else:
+        last_digest_time = datetime.utcnow() - timedelta(hours=24)
+
+    with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
+        creds_data = json.load(f)
+    creds = Credentials.from_authorized_user_info(creds_data)
+    service = build('gmail', 'v1', credentials=creds)
+
+    # Get recent messages
+    results = service.users().messages().list(
+        userId='me',
+        q=f"after:{int(last_digest_time.timestamp())}",
+        labelIds=['INBOX']
+    ).execute()
+
+    message_ids = [msg['id'] for msg in results.get('messages', [])]
+
+    digest = build_digest(email, service, message_ids)
+
+    # Reset the stat timestamp
+    r.set(f"user:{email}:last_digest_time", digest["timestamp"])
+
+    return jsonify(digest)
+
 
 
 
