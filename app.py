@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from openai import OpenAI
 from classifier import classify_email
+from summarizer import summarize_email
 import os
 
 import base64
@@ -177,6 +178,7 @@ def gmail_webhook():
 
             # STAT TRACKING TO GO HERE'
 
+            increment_stat(r.get('linked_gmail_user'), 'emailsReceived')
             increment_stat(r.get('linked_gmail_user'), 'emailsSorted')
 
         print('\n'.join(status_messages))
@@ -309,6 +311,15 @@ def get_stats():
     }
 
     return jsonify(stats)
+
+@app.route('/summarize', methods=['POST'])
+def summarize():
+    data = request.get_json()
+    subject = str(data.get("subject", ""))
+    body = str(data.get("body", ""))
+    
+    summary = summarize_email(subject, body)
+    return jsonify({"summary": summary})
 
 
 

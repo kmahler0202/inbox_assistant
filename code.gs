@@ -19,13 +19,16 @@ function buildAddOn(e) {
 
 function buildHomePage(e) {
   // Section 1: Quick Summary
-  const summary = CardService.newTextParagraph().setText(
-    "<b>📬 Inbox Overview</b><br>" +
-    "You’ve received <b>42 emails</b> today.<br>" +
-    "✅ <b>34 sorted</b> automatically<br>" +
-    "📝 <b>3 summaries</b> available<br>" +
-    "📌 <b>2 action items</b> extracted"
-  );
+  var email = Session.getActiveUser().getEmail();
+  var response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/get_stats", {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({email: email})
+  });
+
+  var stats = JSON.parse(response.getContentText());
+
+  const summary = buildInboxOverviewCard(stats);
 
   // Section 2: Actions
   const viewDigestBtn = CardService.newTextButton()
@@ -34,7 +37,7 @@ function buildHomePage(e) {
 
   const summarizeBtn = CardService.newTextButton()
     .setText("Summarize Current Thread")
-    .setOnClickAction(CardService.newAction().setFunctionName("summarizeCurrentThread"));
+    .setOnClickAction(CardService.newAction().setFunctionName("fetchEmailSummary"));
 
   const actionsSection = CardService.newCardSection()
     .addWidget(summary)
@@ -327,6 +330,16 @@ function saveSortingSettings(e) {
       )
     )
     .build();
+}
+
+function buildInboxOverviewCard(stats) {
+  return CardService.newTextParagraph().setText(
+    "<b>📬 Inbox Overview</b><br>" +
+    "You’ve received <b>" + stats.emailsReceived + "</b> emails today.<br>" +
+    "✅ <b>" + stats.emailsSorted + "</b> sorted automatically<br>" +
+    "📝 <b>" + stats.summariesGenerated + "</b> summaries available<br>" +
+    "📌 <b>" + stats.actionItemsExtracted + "</b> action ites extracted"
+  );
 }
 
 function isChecked(field) {
