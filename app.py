@@ -4,6 +4,7 @@ from classifier import classify_email
 from summarizer import summarize_email
 from smart_reply import draft_smart_reply
 from digest import build_digest
+from extract import extract_action_items
 import os
 
 import base64
@@ -177,6 +178,29 @@ def gmail_webhook():
 
             if label == "Promotions":
                 modified_body["removeLabelIds"].append("INBOX")
+            else:
+                full_msg_data = service.users().messages().get(userId='me', id=msg_id, format='full').execute()
+                body_data = get_email_body(full_msg_data)
+                action_items = extract_action_items(subject, body_data)
+
+                if action_items:
+                    status_messages.append(f\"📌 Action Items Found: {len(action_items)} items.\")
+                    for item in action_items:
+                        status_messages.append(f\"➡️ {item}\")
+
+                # Optional: track stats
+                    increment_stat(r.get('linked_gmail_user'), 'actionItemsExtracted')
+
+                    # Optional: store action items in Redis list
+                    for item in action_items:
+                            r.rpush(f\"action_items:{msg_id}\", item)
+
+                    existing_items = r.hget("action_items_global", msg_id)
+                    if existing_items:
+                        items = json.loads(existing_items) + action_items
+                    else:
+                        items = action_items
+                    r.hset("action_items_global", msg_id, json.dumps(items))
 
             service.users().messages().modify(
                 userId='me',
@@ -380,9 +404,42 @@ def draft_reply():
     draft = draft_smart_reply(subject, body)
     return jsonify({"draft": draft})
 
+@app.route('/get_all_action_items', methods=['GET'])
+def get_all_action_items():
+    all_items = r.hgetall("action_items_global")
+    result = []
+    for msg_id, items_json in all_items.items():
+        for item in json.loads(items_json):
+            result.append({"message_id": msg_id, "item": item})
+    return jsonify({"items": result})
+
+@app.route('/clear_action_item', methods=['POST'])
+def clear_action_item():
+    data = request.get_json()
+    msg_id = data.get('message_id')
+    item = data.get('item')
+    items = json.loads(r.hget("action_items_global", msg_id) or '[]')
+    items = [i for i in items if i != item]
+    if items:
+        r.hset("action_items_global", msg_id, json.dumps(items))
+    else:
+        r.hdel("action_items_global", msg_id)
+    return jsonify({"status": "done"})
 
 
-
+def get_email_body(message):
+    try:
+        parts = message.get('payload', {}).get('parts', [])
+        for part in parts:
+            if part.get('mimeType') == 'text/plain':
+                data = part.get('body', {}).get('data')
+                if data:
+                    from base64 import urlsafe_b64decode
+                    return urlsafe_b64decode(data).decode('utf-8')
+        # fallback
+        return message.get('snippet', '')
+    except Exception:
+        return message.get('snippet', '')
 
 def to_bool(val):
     if isinstance(val, bool):
