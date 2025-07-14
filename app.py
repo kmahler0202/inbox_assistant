@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from openai import OpenAI
 from classifier import classify_email
 from summarizer import summarize_email
+from smart_reply import draft_smart_reply
 from digest import build_digest
 import os
 
@@ -324,8 +325,12 @@ def summarize():
     data = request.get_json()
     subject = str(data.get("subject", ""))
     body = str(data.get("body", ""))
+    email = data.get("email")
     
     summary = summarize_email(subject, body)
+
+    increment_stat(email, 'summariesGenerated')
+
     return jsonify({"summary": summary})
 
 @app.route('/daily_digest', methods=['POST'])
@@ -364,6 +369,16 @@ def daily_digest():
     r.delete(f"stats:{email}:since_last_digest")
 
     return jsonify(digest)
+
+
+@app.route('/draft_reply', methods=['POST'])
+def draft_reply():
+    data = request.get_json()
+    subject = str(data.get("subject", ""))
+    body = str(data.get("body", ""))
+
+    draft = draft_smart_reply(subject, body)
+    return jsonify({"draft": draft})
 
 
 
