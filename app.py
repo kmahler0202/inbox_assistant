@@ -304,11 +304,29 @@ def send_followup():
     creds = Credentials.from_authorized_user_info(creds_data)
     service = build('gmail', 'v1', credentials=creds)
 
+    # Get latest message in the thread to set correct headers
+    thread = service.users().threads().get(userId='me', id=thread_id).execute()
+    last_message = thread['messages'][-1]
+    last_message_id = last_message['id']
+    last_headers = last_message['payload']['headers']
+
+    subject = next((h['value'] for h in last_headers if h['name'].lower() == 'subject'), '')
+    to_email = next((h['value'] for h in last_headers if h['name'].lower() == 'from'), '')
+
+    # Compose reply headers
+    raw_message = f"""From: me
+To: {to_email}
+Subject: Re: {subject}
+In-Reply-To: {last_message['id']}
+References: {last_message['id']}
+
+{draft}
+"""
+
+    import base64
     message = {
-        "raw": base64.urlsafe_b64encode(
-            f"Subject: Following up\n\n{draft}".encode('utf-8')
-        ).decode('utf-8'),
-        "threadId": thread_id
+        'raw': base64.urlsafe_b64encode(raw_message.encode('utf-8')).decode('utf-8'),
+        'threadId': thread_id
     }
 
     sent = service.users().messages().send(userId='me', body=message).execute()
