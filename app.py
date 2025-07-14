@@ -184,16 +184,16 @@ def gmail_webhook():
                 action_items = extract_action_items(subject, body_data)
 
                 if action_items:
-                    status_messages.append(f\"📌 Action Items Found: {len(action_items)} items.\")
+                    status_messages.append(f"📌 Action Items Found: {len(action_items)} items.")
                     for item in action_items:
-                        status_messages.append(f\"➡️ {item}\")
+                        status_messages.append(f"➡️ {item}")
 
                 # Optional: track stats
                     increment_stat(r.get('linked_gmail_user'), 'actionItemsExtracted')
 
                     # Optional: store action items in Redis list
                     for item in action_items:
-                            r.rpush(f\"action_items:{msg_id}\", item)
+                            r.rpush(f"action_items:{msg_id}", item)
 
                     existing_items = r.hget("action_items_global", msg_id)
                     if existing_items:
