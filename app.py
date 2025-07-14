@@ -307,11 +307,9 @@ def get_stats():
     if not email:
         return jsonify({"error": "Missing email"}), 400
 
-    today = str(datetime.utcnow().date())
-    key = f"stats:{email}:{today}"
+    key = f"stats:{email}:since_last_digest"
     raw = r.hgetall(key)
 
-    # Normalize stats
     stats = {
         "emailsReceived": int(raw.get("emailsReceived", 0)),
         "emailsSorted": int(raw.get("emailsSorted", 0)),
@@ -363,6 +361,7 @@ def daily_digest():
 
     # Reset the stat timestamp
     r.set(f"user:{email}:last_digest_time", digest["timestamp"])
+    r.delete(f"stats:{email}:since_last_digest")
 
     return jsonify(digest)
 
@@ -381,7 +380,10 @@ def to_bool(val):
 
 def increment_stat(email, field):
     today_key = f"stats:{email}:{datetime.utcnow().date()}"
+    digest_key = f"stats:{email}:since_last_digest"
     r.hincrby(today_key, field, 1)
+    r.hincrby(digest_key, field, 1)
+
 
 
 if __name__ == '__main__':
