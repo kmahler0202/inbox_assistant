@@ -37,7 +37,7 @@ function buildHomePage(e) {
 
   const summarizeBtn = CardService.newTextButton()
     .setText("Summarize Current Thread")
-    .setOnClickAction(CardService.newAction().setFunctionName("fetchEmailSummary"));
+    .setOnClickAction(CardService.newAction().setFunctionName("handleSummarize"));
 
   const actionsSection = CardService.newCardSection()
     .addWidget(summary)
@@ -92,6 +92,34 @@ function buildHomePage(e) {
 
   return card;
 }
+
+function handleSummarize(e) {
+  const messageId = e.gmail.messageId;
+
+  if (!messageId) {
+    return CardService.newCardBuilder()
+      .setHeader(CardService.newCardHeader().setTitle("Summary Error"))
+      .addSection(CardService.newCardSection().addWidget(
+        CardService.newTextParagraph().setText("⚠️ No email selected.")
+      ))
+      .build();
+  }
+
+  const message = GmailApp.getMessageById(messageId);
+  const subject = message.getSubject();
+  const body = message.getPlainBody();
+  const summary = summarize(subject, body); // uses summarizer.gs
+
+  const section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText('<b>Subject:</b>' + subject))
+    .addWidget(CardService.newTextParagraph().setText('<b>Summary:</b><br>' + summary));
+
+  return CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle("📝 Email Summary"))
+    .addSection(section)
+    .build();
+}
+
 
 function buildWelcomePage(e) {
 // Logo image
