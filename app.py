@@ -267,6 +267,32 @@ def get_followups():
 
     return jsonify(followups)
 
+@app.route('/draft_followup', methods=['POST'])
+def draft_followup():
+    data = request.get_json()
+    subject = str(data.get("subject", ""))
+    previous_message = str(data.get("previous_message", ""))  # optional, for context
+
+    prompt = f"""You are a helpful email assistant. Draft a short, professional follow-up email for the thread with subject: "{subject}".
+    
+If there is a previous message, use it for context. The follow-up should politely ask for an update without sounding aggressive.
+
+Subject: {subject}
+Previous message (if any): {previous_message}
+
+Draft:"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {"role": "system", "content": "You are an expert at writing professional, concise follow-up emails."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    draft = response.choices[0].message.content.strip()
+    return jsonify({"draft": draft})
+
 @app.route('/send_followup', methods=['POST'])
 def send_followup():
     data = request.get_json()
