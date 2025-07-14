@@ -243,7 +243,6 @@ def gmail_webhook():
     
 @app.route('/get_followups', methods=['GET'])
 def get_followups():
-    from datetime import datetime, timedelta
     with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
         creds_data = json.load(f)
     creds = Credentials.from_authorized_user_info(creds_data)
@@ -256,8 +255,6 @@ def get_followups():
         thread_id = key.split(":")[1]
         data = r.hgetall(key)
         sent_time = datetime.utcfromtimestamp(int(data.get('sent_time')) / 1000)
-        if (now - sent_time).days < 2:
-            continue  # skip recent emails
         
         thread = service.users().threads().get(userId='me', id=thread_id).execute()
         messages = thread.get('messages', [])

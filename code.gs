@@ -64,12 +64,12 @@ function buildHomePage(e) {
     .addWidget(
       CardService.newTextButton()
         .setText("✍️ Draft Smart Reply")
-        .setOnClickAction(CardService.newAction().setFunctionName("generateDraftReply"))
+        .setOnClickAction(CardService.newAction().setFunctionName("draftSmartReply"))
     )
     .addWidget(
       CardService.newTextButton()
-        .setText("📌 Extract Action Items")
-        .setOnClickAction(CardService.newAction().setFunctionName("extractActionItems"))
+        .setText("📌 View Action Items")
+        .setOnClickAction(CardService.newAction().setFunctionName("viewAllActionItems"))
     )
     .addWidget(
       CardService.newTextButton()
@@ -92,6 +92,155 @@ function buildHomePage(e) {
 
   return card;
 }
+
+function viewFollowUps() {
+  var url = "https://inbox-assistant-x5uk.onrender.com/get_followups";
+  var response = UrlFetchApp.fetch(url);
+  var followups = JSON.parse(response.getContentText());
+
+  var section = CardService.newCardSection();
+
+  if (followups.length === 0) {
+    section.addWidget(CardService.newTextParagraph().setText("✅ No follow-ups needed right now."));
+  } else {
+    for (var i = 0; i < followups.length; i++) {
+      var item = followups[i];
+
+      var openEmail = CardService.newOpenLink()
+        .setUrl("https://mail.google.com/mail/u/0/#inbox/" + item.thread_id);
+
+      var draftFollowUp = CardService.newAction()
+        .setFunctionName('draftFollowUp')
+        .setParameters({ thread_id: item.thread_id, subject: item.subject });
+
+      section.addWidget(
+        CardService.newDecoratedText()
+          .setText(item.subject + " (" + item.days_since_sent + " days ago)")
+          .setBottomLabel("📧 View Conversation")
+          .setOpenLink(openEmail)
+          .setButton(
+            CardService.newTextButton()
+              .setText("✉️ Draft Follow-Up")
+              .setOnClickAction(draftFollowUp)
+          )
+      );
+    }
+  }
+
+  var backButton = CardService.newTextButton()
+    .setText("⬅️ Back")
+    .setOnClickAction(CardService.newAction().setFunctionName("buildAddOn"));
+  section.addWidget(backButton);
+
+  var card = CardService.newCardBuilder().addSection(section).build();
+  return CardService.newNavigation().pushCard(card);
+}
+
+function draftFollowUp(e) {
+  var payload = {
+    thread_id: e.parameters.thread_id,
+    subject: e.parameters.subject
+  };
+  var response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/draft_followup", {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload)
+  });
+  var draft = JSON.parse(response.getContentText()).draft;
+
+  var sendNow = CardService.newAction()
+    .setFunctionName('sendFollowUpNow')
+    .setParameters({
+      thread_id: e.parameters.thread_id,
+      draft: draft
+    });
+
+  var section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText("✉️ Drafted Follow-Up:"))
+    .addWidget(CardService.newTextParagraph().setText(draft))
+    .addWidget(CardService.newTextButton()
+      .setText("📤 Send Follow-Up Now")
+      .setOnClickAction(sendNow))
+    .addWidget(CardService.newTextButton()
+      .setText("⬅️ Back to Follow Ups")
+      .setOnClickAction(CardService.newAction().setFunctionName("viewFollowUps")));
+
+  var card = CardService.newCardBuilder().addSection(section).build();
+  return CardService.newNavigation().pushCard(card);
+}
+
+function sendFollowUpNow(e) {
+  var response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/send_followup", {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({
+      thread_id: e.parameters.thread_id,
+      draft: e.parameters.draft
+    })
+  });
+
+  var result = JSON.parse(response.getContentText());
+  var status = result.status === "sent" ? "✅ Follow-up sent!" : "❌ Failed to send follow-up.";
+
+  return CardService.newActionResponseBuilder()
+    .setNotification(CardService.newNotification().setText(status))
+    .build();
+}
+
+
+function viewAllActionItems() {
+  var url = "https://inbox-assistant-x5uk.onrender.com/get_all_action_items";
+  var response = UrlFetchApp.fetch(url);
+  var items = JSON.parse(response.getContentText()).items;
+
+  var section = CardService.newCardSection();
+
+  if (items.length === 0) {
+    section.addWidget(CardService.newTextParagraph().setText("✅ No outstanding action items."));
+  } else {
+    for (var i = 0; i < items.length; i++) {
+      var obj = items[i];
+      var openAction = CardService.newOpenLink()
+        .setUrl("https://mail.google.com/mail/u/0/#inbox/" + obj.message_id);
+
+      var markDone = CardService.newAction()
+        .setFunctionName('markActionItemDone')
+        .setParameters({ message_id: obj.message_id, item: obj.item });
+
+      section.addWidget(
+        CardService.newDecoratedText()
+          .setText(obj.item)
+          .setBottomLabel("📧 View Email")
+          .setOpenLink(openAction)
+          .setButton(CardService.newTextButton().setText("✅ Mark Done").setOnClickAction(markDone))
+      );
+    }
+  }
+
+  var backButton = CardService.newTextButton()
+    .setText('⬅️ Back')
+    .setOnClickAction(CardService.newAction().setFunctionName('buildAddOn'));
+  section.addWidget(backButton);
+
+  var card = CardService.newCardBuilder().addSection(section).build();
+  return CardService.newNavigation().pushCard(card);
+}
+
+
+function markActionItemDone(e) {
+  const payload = {
+    message_id: e.parameters.message_id,
+    item: e.parameters.item
+  };
+  UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/clear_action_item", {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload)
+  });
+  return CardService.newNavigation().popToRoot().updateCard(buildAddOn());
+}
+
+
 
 function handleSummarize(e) {
   const messageId = e.gmail.messageId;
@@ -360,13 +509,78 @@ function saveSortingSettings(e) {
     .build();
 }
 
+function draftSmartReply(e) {
+  try {
+    const messageId = e.messageMetadata.messageId;
+    const accessToken = e.messageMetadata.accessToken;
+    const subject = GmailApp.getMessageById(messageId).getHeader("Subject");
+    const body = GmailApp.getMessageById(messageId).getPlainBody().slice(0, 1000);
+
+    const options = {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({ subject : subject, body : body })
+    };
+
+    const response = UrlFetchApp.fetch("https://inbox-assistant-x5uk.onrender.com/draft_reply", options);
+    const draft = JSON.parse(response.getContentText()).draft;
+
+    return buildDraftCard(subject, draft);
+
+  } catch (err) {
+    return buildFriendlyErrorCard();
+  }
+}
+
+function buildDraftCard(subject, draft) {
+  const backAction = CardService.newAction().setFunctionName('buildAddOn');
+  const backButton = CardService.newTextButton()
+    .setText('⬅️ Back')
+    .setOnClickAction(backAction);
+
+  const draftSection = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText('<b>Subject:</b>' + subject))
+    .addWidget(CardService.newTextParagraph().setText('<b>Draft Reply:</b><br>' + draft))
+    .addWidget(backButton);
+
+  const card = CardService.newCardBuilder()
+    .addSection(draftSection)
+    .build();
+
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().pushCard(card))
+    .build();
+}
+
+function buildFriendlyErrorCard() {
+  const backAction = CardService.newAction().setFunctionName('buildAddOn');
+  const backButton = CardService.newTextButton()
+    .setText('⬅️ Back')
+    .setOnClickAction(backAction);
+
+  const card = CardService.newCardBuilder()
+    .addSection(CardService.newCardSection()
+      .addWidget(CardService.newTextParagraph().setText(
+        '⚠️ Please open an email first before using Smart Reply.'))
+      .addWidget(backButton)
+    )
+    .build();
+
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().pushCard(card))
+    .build();
+}
+
+
+
+
 function buildInboxOverviewCard(stats) {
   return CardService.newTextParagraph().setText(
     "<b>📬 Inbox Overview</b><br>" +
-    "You’ve received <b>" + stats.emailsReceived + "</b> emails today.<br>" +
+    "You’ve received <b>" + stats.emailsReceived + "</b> emails since last digest<br>" +
     "✅ <b>" + stats.emailsSorted + "</b> sorted automatically<br>" +
-    "📝 <b>" + stats.summariesGenerated + "</b> summaries available<br>" +
-    "📌 <b>" + stats.actionItemsExtracted + "</b> action ites extracted"
+    "📝 <b>" + stats.summariesGenerated + "</b> summaries generated<br>" +
+    "📌 <b>" + stats.actionItemsExtracted + "</b> unfinished action items"
   );
 }
 
