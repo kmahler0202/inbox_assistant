@@ -82,7 +82,7 @@ def start_watch():
         service = build('gmail', 'v1', credentials=creds)
 
         request = {
-            'labelIds': ['INBOX'],
+            'labelIds': ['INBOX', 'SENT'],
             'topicName': 'projects/email-organizer-461719/topics/gmail-notify',
             'labelFilterBehavior': 'INCLUDE'
         }
@@ -147,6 +147,22 @@ def gmail_webhook():
             msg_data = service.users().messages().get(
                 userId='me', id=msg_id, format='metadata', metadataHeaders=['Subject']
             ).execute()
+
+            labels = msg_data.get('labelIds', [])
+
+            # ✅ Handle sent emails for follow-up tracking
+            if 'SENT' in labels:
+                sent_time = int(msg_data['internalDate'])
+                thread_id = msg_data['threadId']
+                subject = next((h['value'] for h in msg_data['payload']['headers'] if h['name'] == 'Subject'), '')
+
+                r.hset(f"sent_followups:{thread_id}", mapping={
+                    "subject": subject,
+                    "sent_time": sent_time
+                })
+
+                status_messages.append(f"📤 Tracked SENT email for follow-up: {subject}")
+                continue  # Skip rest of loop for sent messages
 
             subject = next((h['value'] for h in msg_data['payload']['headers'] if h['name'] == 'Subject'), '')
             snippet = msg_data.get('snippet', '')
@@ -224,6 +240,57 @@ def gmail_webhook():
         status_messages.append(f"❌ Error: {str(e)}")
         print('\n'.join(status_messages))
         return '\n'.join(status_messages), 500
+    
+@app.route('/get_followups', methods=['GET'])
+def get_followups():
+    from datetime import datetime, timedelta
+    with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
+        creds_data = json.load(f)
+    creds = Credentials.from_authorized_user_info(creds_data)
+    service = build('gmail', 'v1', credentials=creds)
+
+    now = datetime.utcnow()
+    followups = []
+    keys = r.keys("sent_followups:*")
+    for key in keys:
+        thread_id = key.split(":")[1]
+        data = r.hgetall(key)
+        sent_time = datetime.utcfromtimestamp(int(data.get('sent_time')) / 1000)
+        if (now - sent_time).days < 2:
+            continue  # skip recent emails
+        
+        thread = service.users().threads().get(userId='me', id=thread_id).execute()
+        messages = thread.get('messages', [])
+        if len(messages) <= 1:
+            followups.append({
+                "subject": data.get("subject"),
+                "thread_id": thread_id,
+                "days_since_sent": (now - sent_time).days
+            })
+
+    return jsonify(followups)
+
+@app.route('/send_followup', methods=['POST'])
+def send_followup():
+    data = request.get_json()
+    thread_id = data.get('thread_id')
+    draft = data.get('draft')
+
+    with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
+        creds_data = json.load(f)
+    creds = Credentials.from_authorized_user_info(creds_data)
+    service = build('gmail', 'v1', credentials=creds)
+
+    message = {
+        "raw": base64.urlsafe_b64encode(
+            f"Subject: Following up\n\n{draft}".encode('utf-8')
+        ).decode('utf-8'),
+        "threadId": thread_id
+    }
+
+    sent = service.users().messages().send(userId='me', body=message).execute()
+    return jsonify({"status": "sent", "id": sent.get("id")})
+
 
 @app.route('/save_settings', methods=['POST'])
 def save_settings():
