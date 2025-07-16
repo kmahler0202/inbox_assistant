@@ -537,7 +537,7 @@ def get_all_action_items():
 
     return jsonify({"items": result})
 
-
+# ?????
 @app.route('/clear_action_item', methods=['POST'])
 def clear_action_item():
     data = request.get_json()
@@ -550,6 +550,14 @@ def clear_action_item():
     else:
         r.hdel("action_items_global", msg_id)
     return jsonify({"status": "done"})
+
+@app.route('/clear_action_items_for_message', methods=['POST'])
+def clear_action_items_for_message():
+    data = request.get_json()
+    msg_id = data.get('message_id')
+    r.hdel("action_items_global", msg_id)
+    return jsonify({"status": "cleared_all_for_message"})
+
 
 @app.route('/clear_all_action_items', methods=['POST'])
 def clear_all_action_items():
