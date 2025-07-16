@@ -275,12 +275,12 @@ def draft_followup():
 
     prompt = f"""You are a helpful email assistant. Draft a short, professional follow-up email for the thread with subject: "{subject}".
     
-If there is a previous message, use it for context. The follow-up should politely ask for an update without sounding aggressive.
+                    If there is a previous message, use it for context. The follow-up should politely ask for an update without sounding aggressive.
 
-Subject: {subject}
-Previous message (if any): {previous_message}
+                    Subject: {subject}
+                    Previous message (if any): {previous_message}
 
-Draft:"""
+                    Draft:"""
 
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
@@ -315,12 +315,12 @@ def send_followup():
 
     # Compose reply headers
     raw_message = f"""From: me
-To: {to_email}
-Subject: Re: {subject}
-In-Reply-To: {last_message['id']}
-References: {last_message['id']}
+        To: {to_email}
+        Subject: Re: {subject}
+        In-Reply-To: {last_message['id']}
+        References: {last_message['id']}
 
-{draft}
+        {draft}
 """
 
     import base64
@@ -516,10 +516,27 @@ def draft_reply():
 def get_all_action_items():
     all_items = r.hgetall("action_items_global")
     result = []
+
+    with open('/etc/secrets/GMAIL_TOKEN_JSON') as f:
+        creds_data = json.load(f)
+    creds = Credentials.from_authorized_user_info(creds_data)
+    service = build('gmail', 'v1', credentials=creds)
+
     for msg_id, items_json in all_items.items():
-        for item in json.loads(items_json):
-            result.append({"message_id": msg_id, "item": item})
+        items = json.loads(items_json)
+        action_count = len(items)
+
+        msg_data = service.users().messages().get(userId='me', id=msg_id, format='metadata', metadataHeaders=['From']).execute()
+        sender = next((h['value'] for h in msg_data['payload']['headers'] if h['name'] == 'From'), 'Unknown')
+
+        result.append({
+            "message_id": msg_id,
+            "sender": sender,
+            "action_count": action_count
+        })
+
     return jsonify({"items": result})
+
 
 @app.route('/clear_action_item', methods=['POST'])
 def clear_action_item():
@@ -533,6 +550,14 @@ def clear_action_item():
     else:
         r.hdel("action_items_global", msg_id)
     return jsonify({"status": "done"})
+
+@app.route('/clear_all_action_items', methods=['POST'])
+def clear_all_action_items():
+    keys = r.hkeys("action_items_global")
+    for key in keys:
+        r.hdel("action_items_global", key)
+    return jsonify({"status": "all cleared"})
+
 
 
 def get_email_body(message):
