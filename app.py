@@ -532,7 +532,8 @@ def get_all_action_items():
         result.append({
             "message_id": msg_id,
             "sender": sender,
-            "action_count": action_count
+            "action_count": action_count,
+            "items" : items
         })
 
     return jsonify({"items": result})
