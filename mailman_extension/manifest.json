@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Mailman AI",
+  "version": "1.0",
+  "description": "Your Personal Gmail Assistant, Automating the Boring Stuff",
+  "permissions": ["storage", "tabs", "scripting", "notifications"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon":  {
+        "16": "icons/logo.png",
+        "32": "icons/logo.png",
+        "48": "icons/logo.png",
+        "128":"icons/logo.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*",
+                  "https://developer.chrome.com/docs/extensions/*",
+                  "https://developer.chrome.com/docs/webstore/*"],
+      "js": ["scripts/content.js"]
+    }
+  ]
+}

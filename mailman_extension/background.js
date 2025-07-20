@@ -1,0 +1,1 @@
+console.log("Mailman AI Extension Loaded")

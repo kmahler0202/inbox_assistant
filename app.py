@@ -5,6 +5,7 @@ from summarizer import summarize_email
 from smart_reply import draft_smart_reply
 from digest import build_digest
 from extract import extract_action_items
+from flask_cors import CORS
 import os
 
 import base64
@@ -21,7 +22,9 @@ from datetime import datetime
 
 r = redis.from_url(os.environ['REDIS_URL'], decode_responses=True)
 
-app = Flask(__name__)
+app = Flask(__name__)\
+
+CORS(app)
 
 # PUB/SUB TOPIC NAME BELOW:
 # projects/email-organizer-461719/topics/gmail-notify
